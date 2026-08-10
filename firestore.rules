@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function admin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Admin account markers are created manually in Firestore after the admin
+    // signs in. Users can only read their own marker and cannot create one.
+    match /admins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Public users can submit these records, but only admins can read them.
+    match /safety_status/{id} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read: if admin();
+      allow update, delete: if admin();
+    }
+
+    match /help_requests/{id} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read: if admin();
+      allow update, delete: if admin();
+    }
+
+    match /incidents/{id} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid;
+      allow read: if admin();
+      allow update, delete: if admin();
+    }
+
+    // Broadcasts are public-readable so every signed-in anonymous/public
+    // device can receive emergency notices in real time. Only admins write.
+    match /broadcasts/{id} {
+      allow read: if signedIn();
+      allow create: if admin();
+      allow update, delete: if admin();
+    }
+
+    // Current emergency state: public read, admin write.
+    match /system/{id} {
+      allow read: if signedIn();
+      allow write: if admin();
+    }
+  }
+}
